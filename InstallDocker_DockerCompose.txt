@@ -12,7 +12,7 @@ vi docker-compose.yml
 
 
 
-Add the following in the yml file:
+(Add the following in the yml file:)
 version: '3'
 services:
   jenkins:
@@ -28,6 +28,7 @@ networks:
   net:
 
 
+Notes: 
 1. create a directory "jenkins_home" at the same level where the yml file is.
 2. sudo chown 1000:1000 jenkins_home(make sure the jenkins id is 1000, to check the jenkins id, write : "id" in your bash)
 3. Up the server: docker-compose up -d
