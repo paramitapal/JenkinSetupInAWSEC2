@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EC2 Instance with Docker and Jenkins using CloudFormation
+
+Parameters:
+  SSHKeyPair:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: name of the key pair to ssh into the instance
+  EC2InstanceAMI:
+    Description: AMI for the Amazon Linux 2 based EC2 instance. Please don't change this parameter unless needed for some compliance requirement
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+Resources:
+
+  InstanceSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Security group for EC2 instance
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 22
+          ToPort: 22
+          IpProtocol: tcp
+        - CidrIp: 0.0.0.0/0
+          FromPort: 8080
+          ToPort: 8080
+          IpProtocol: tcp
+
+  EC2Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      KeyName: !Ref SSHKeyPair
+      ImageId: !Ref EC2InstanceAMI
+      InstanceType: t3.small
+      SecurityGroups:
+        - !Ref InstanceSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y docker
+          service docker start
+          systemctl enable docker
+          docker pull jenkins/jenkins
+          mkdir -p /jenkins-data/jenkins_home
+          chown -R 1000:1000 /jenkins-data
+          cd /jenkins-data
+          docker run --name myjenkins -p 8080:8080 -p 50000:50000 -d -v /jenkins-data/jenkins_home:/var/jenkins_home jenkins/jenkins
+          echo "Docker PS Status:"
+          docker ps
+          sleep 120
+          echo "Initial Jenkins Password:"
+          cat /jenkins-data/jenkins_home/secrets/initialAdminPassword
+Outputs:
+  JenkinsURL:
+    Description: Jenkins Server URL
+    Value: !Sub
+            - "http://${EC2InstancePublicIp}:8080/"
+            - {EC2InstancePublicIp: !GetAtt EC2Instance.PublicIp}
+  JenkinsInitialPassword:
+    Description: SSH Command for Jenkins Initial Password
+    Value: !Sub
+            - 'ssh -i ${SSHKeyPair}.pem -t ec2-user@${EC2InstancePublicIp} "cat /jenkins-data/jenkins_home/secrets/initialAdminPassword"'
+            - {EC2InstancePublicIp: !GetAtt EC2Instance.PublicIp}
+
